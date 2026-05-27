@@ -24,3 +24,6 @@ target
 # Added by cargo
 
 /target
+
+# These are test JavaScript files
+*.js
