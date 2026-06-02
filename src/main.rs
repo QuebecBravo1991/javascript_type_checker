@@ -79,13 +79,6 @@ fn read_program(path: &str) -> Result<String, io::Error> {
     Ok(contents)
 }
 
-// fn gen_ast(source: String) -> &'a Program {
-//     let allocator = Allocator::default();
-//     let source_type = SourceType::default();
-//     let ret = Parser::new(&allocator, &source, source_type).parse();
-//     ret.program
-// }
-
 fn gen_ast<'a>(allocator: &'a Allocator, source: &'a str) -> Program<'a> {
     let source_type = SourceType::default();
     let ret = Parser::new(allocator, source, source_type).parse();
