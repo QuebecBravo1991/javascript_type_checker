@@ -79,18 +79,27 @@ fn read_program(path: &str) -> Result<String, io::Error> {
     Ok(contents)
 }
 
-fn gen_ast(source: String) {
-    let allocator = Allocator::default();
-    let source_type = SourceType::default();
-    let ret = Parser::new(&allocator, &source, source_type).parse();
-    let program = ret.program;
+// fn gen_ast(source: String) -> &'a Program {
+//     let allocator = Allocator::default();
+//     let source_type = SourceType::default();
+//     let ret = Parser::new(&allocator, &source, source_type).parse();
+//     ret.program
+// }
 
+fn gen_ast<'a>(allocator: &'a Allocator, source: &'a str) -> Program<'a> {
+    let source_type = SourceType::default();
+    let ret = Parser::new(allocator, source, source_type).parse();
+    ret.program
+}
+
+fn gen_constraints(program: Program) {
     let mut visitor = Visitor {
         id_type_vars: HashMap::new(),
         non_id_type_vars: HashMap::new(),
         constraints: Vec::new(),
         id_genor: UniqueId::new(),
     };
+
     visitor.visit_program(&program);
     println!("{:?}", visitor.id_type_vars);
     println!("{:?}", visitor.constraints);
@@ -98,5 +107,8 @@ fn gen_ast(source: String) {
 
 fn main() {
     let source = read_program("example.js").unwrap();
-    gen_ast(source);
+
+    let allocator = Allocator::default();
+    let program = gen_ast(&allocator, &source);
+    gen_constraints(program);
 }
