@@ -1,9 +1,12 @@
 [package]
-name = "javascript_type_analyzer"
+name = "javascript_type_checker"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 oxc_allocator = "0.133.0"
+oxc_ast = "0.133.0"
+oxc_ast_visit = "0.133.0"
 oxc_parser = "0.133.0"
 oxc_span = "0.133.0"
+oxc_syntax = "0.133.0"
