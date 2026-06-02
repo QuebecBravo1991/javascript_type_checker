@@ -1,7 +1,9 @@
 use oxc_allocator::Allocator;
+use oxc_ast::ast::BinaryOperator::Equality;
 use oxc_ast::ast::*;
 use oxc_ast_visit::{Visit, walk};
 use oxc_parser::Parser;
+use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
 use oxc_syntax::scope::ScopeFlags;
 use std::collections::HashMap;
@@ -61,8 +63,22 @@ impl<'a> Visit<'a> for Visitor {
 
         walk::walk_function(self, it, flags);
     }
-    // all non identifier expressions get a type variable
-    // fn visit_expression
+    // fn visit_binary_expression(&mut self, it: &BinaryExpression<'a>) {
+    //     let left_id = self.id_genor.next();
+    //     let left_operator = Type::TypeVar(left_id.to_string());
+    //     let right_id = self.id_genor.next();
+    //     let right_operator = Type::TypeVar(right_id.to_string());
+    //     self.non_id_type_vars.insert(left_id, left_operator);
+    //     self.non_id_type_vars.insert(right_id, right_operator);
+
+    //     if it.operator == Equality {
+    //         // do stuff
+    //     } else {
+    //         self.constraints.push((left_operator, right_operator));
+    //         self.constraints.push((left_operator, Type::Int));
+    //         self.constraints.push((right_operator, Type::Int));
+    //     }
+    // }
 }
 
 #[derive(Debug)]
@@ -81,8 +97,9 @@ fn read_program(path: &str) -> Result<String, io::Error> {
 
 fn gen_ast<'a>(allocator: &'a Allocator, source: &'a str) -> Program<'a> {
     let source_type = SourceType::default();
-    let ret = Parser::new(allocator, source, source_type).parse();
-    ret.program
+    let program = Parser::new(allocator, source, source_type).parse().program;
+    let semantic_ret = SemanticBuilder::new().build(&program);
+    program
 }
 
 fn gen_constraints(program: Program) {
