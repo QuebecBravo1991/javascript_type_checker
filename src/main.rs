@@ -111,10 +111,24 @@ impl<'a> Visit<'a> for Visitor {
                     _ => panic!("Uh oh! The return type is not valid for this langauge subset."),
                 }
 
+                let mut param_type_vars = Vec::new();
+                for param in &it.params.items {
+                    if let BindingPattern::BindingIdentifier(binding_id) = &param.pattern {
+                        let name = binding_id.name.to_string();
+                        let param_type_var = Type::TypeVar(name.clone());
+                        self.id_type_vars
+                            .entry(name)
+                            .or_insert(param_type_var.clone());
+                        param_type_vars.push(param_type_var);
+                    }
+                }
+
                 let id_type = Type::TypeVar(id.clone());
                 self.id_type_vars.insert(id.clone(), id_type.clone());
-                self.constraints
-                    .push((id_type, Type::Function(Vec::new(), Box::new(return_type))))
+                self.constraints.push((
+                    id_type,
+                    Type::Function(param_type_vars, Box::new(return_type)),
+                ))
             } else {
                 panic!("Uh oh! This function does not meet our TIP style restrictions.")
             }
