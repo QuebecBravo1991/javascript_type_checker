@@ -77,6 +77,27 @@ impl<'a> Visit<'a> for Visitor {
 
         walk::walk_variable_declarator(self, it);
     }
+    fn visit_assignment_expression(&mut self, it: &AssignmentExpression<'a>) {
+        if let AssignmentTarget::AssignmentTargetIdentifier(id_ref) = &it.left {
+            let left_type = Type::TypeVar(id_ref.name.to_string());
+            let right_type;
+            match &it.right {
+                Expression::NumericLiteral(_) => right_type = Type::Int,
+                Expression::Identifier(id_ref) => {
+                    right_type = Type::TypeVar(id_ref.name.to_string())
+                }
+                Expression::CallExpression(ce) => {
+                    right_type = Type::TypeVar(ce.node_id().index().to_string())
+                }
+                _ => panic!("Uh oh! Found a invalid expression in variable assignment"),
+            }
+
+            self.constraints.push((left_type, right_type));
+        } else {
+            panic!("Uh oh! An assignment is being made to something that is not a identifier.");
+        }
+        walk::walk_assignment_expression(self, it);
+    }
     // TODO: output
     // TODO: if statements
     // fn visit_if_statement(&mut self, it: &IfStatement<'a>) {
