@@ -17,6 +17,35 @@ struct Visitor {
 }
 
 impl<'a> Visit<'a> for Visitor {
+    // E1 op E2 and E1 == E2
+    fn visit_binary_expression(&mut self, it: &BinaryExpression<'a>) {
+        let node_id = it.node_id().index().to_string();
+        let left_id = it.left.node_id().index().to_string();
+        let left_operator = Type::TypeVar(left_id.clone());
+        let right_id = it.right.node_id().index().to_string();
+        let right_operator = Type::TypeVar(right_id.clone());
+
+        self.non_id_type_vars
+            .entry(node_id.clone())
+            .or_insert(Type::Int);
+        self.non_id_type_vars
+            .entry(left_id.clone())
+            .or_insert(left_operator.clone());
+        self.non_id_type_vars
+            .entry(right_id.clone())
+            .or_insert(right_operator.clone());
+
+        if it.operator != Equality {
+            self.constraints.push((left_operator.clone(), Type::Int));
+            self.constraints.push((right_operator.clone(), Type::Int));
+        }
+        self.constraints.push((left_operator, right_operator));
+        self.constraints.push((Type::TypeVar(node_id), Type::Int));
+
+        walk::walk_binary_expression(self, it);
+    }
+    // TODO: input
+    // X = E
     fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
         let id = it.id.get_binding_identifier().unwrap().name.to_string();
 
@@ -29,20 +58,31 @@ impl<'a> Visit<'a> for Visitor {
         if let Some(_) = it.init {
             let right_operand = Type::TypeVar(it.node_id().index().to_string());
             self.non_id_type_vars
-                .insert(it.node_id().index().to_string(), right_operand.clone());
+                .entry(it.node_id().index().to_string())
+                .or_insert(right_operand.clone());
 
             self.constraints.push((left_operand.clone(), right_operand));
         }
-        self.id_type_vars.insert(id, left_operand);
+        self.id_type_vars.entry(id).or_insert(left_operand);
 
         walk::walk_variable_declarator(self, it);
     }
     fn visit_formal_parameter(&mut self, it: &FormalParameter<'a>) {
         let id = it.pattern.get_identifier_name().unwrap().into_string();
-        self.id_type_vars.insert(id.to_string(), Type::TypeVar(id));
+        self.id_type_vars
+            .entry(id.to_string())
+            .or_insert(Type::TypeVar(id));
 
         walk::walk_formal_parameter(self, it);
     }
+    // TODO: output
+    // TODO: if statements
+    // fn visit_if_statement(&mut self, it: &IfStatement<'a>) {
+    //     walk::walk_if_statement(self, it);
+    // }
+    // TODO: if else statements
+    // TODO: while statements
+    // X(X1,. . . ,Xn ){ . . . return E; }
     fn visit_function(&mut self, it: &Function<'a>, flags: ScopeFlags) {
         if let Some(binding_id) = &it.id {
             let id = binding_id.name.into_string();
@@ -50,27 +90,6 @@ impl<'a> Visit<'a> for Visitor {
         }
 
         walk::walk_function(self, it, flags);
-    }
-    fn visit_binary_expression(&mut self, it: &BinaryExpression<'a>) {
-        let node_id = it.node_id().index().to_string();
-        let left_id = it.left.node_id().index().to_string();
-        let left_operator = Type::TypeVar(left_id.clone());
-        let right_id = it.right.node_id().index().to_string();
-        let right_operator = Type::TypeVar(right_id.clone());
-
-        self.non_id_type_vars.insert(node_id, Type::Int);
-        self.non_id_type_vars.insert(left_id, left_operator.clone());
-        self.non_id_type_vars
-            .insert(right_id, right_operator.clone());
-
-        if it.operator == Equality {
-            // do stuff
-        } else {
-            self.constraints
-                .push((left_operator.clone(), right_operator.clone()));
-            self.constraints.push((left_operator, Type::Int));
-            self.constraints.push((right_operator, Type::Int));
-        }
     }
 }
 
