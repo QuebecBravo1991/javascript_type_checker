@@ -60,7 +60,7 @@ impl<'a> Visit<'a> for Visitor {
         let id = it.id.get_binding_identifier().unwrap().name.to_string();
 
         if self.id_type_vars.contains_key(&id) {
-            panic!("A variable is being declared with a non-unique identifier!");
+            panic!("Uh oh! A variable is being declared with a non-unique identifier!");
         }
 
         let left_operand = Type::TypeVar(id.clone());
@@ -96,7 +96,28 @@ impl<'a> Visit<'a> for Visitor {
     fn visit_function(&mut self, it: &Function<'a>, flags: ScopeFlags) {
         if let Some(binding_id) = &it.id {
             let id = binding_id.name.into_string();
-            self.id_type_vars.insert(id.to_string(), Type::TypeVar(id));
+
+            // Though this is JavaScript we are going to restrict the input program to TIP rules. The last statement it.body.as_ref().unwrap().statements.last().unwrap()in every function should be a return statement.
+            if let Statement::ReturnStatement(x) =
+                it.body.as_ref().unwrap().statements.last().unwrap()
+            {
+                let return_type;
+                match x.argument.as_ref().unwrap() {
+                    Expression::Identifier(id_ref) => {
+                        let name = id_ref.name.to_string();
+                        return_type = Type::TypeVar(name);
+                    }
+                    Expression::NumericLiteral(_) => return_type = Type::Int,
+                    _ => panic!("Uh oh! The return type is not valid for this langauge subset."),
+                }
+
+                let id_type = Type::TypeVar(id.clone());
+                self.id_type_vars.insert(id.clone(), id_type.clone());
+                self.constraints
+                    .push((id_type, Type::Function(Vec::new(), Box::new(return_type))))
+            } else {
+                panic!("Uh oh! This function does not meet our TIP style restrictions.")
+            }
         }
 
         walk::walk_function(self, it, flags);
@@ -134,11 +155,21 @@ fn gen_constraints(program: Program) {
     visitor.visit_program(&program);
 
     println!("Identifier type variables");
-    println!("{:?}\n", visitor.id_type_vars);
+    for var in visitor.id_type_vars {
+        println!("{:?}", var)
+    }
+    println!();
+
     println!("Non identifier type variables");
-    println!("{:?}\n", visitor.non_id_type_vars);
+    for var in visitor.non_id_type_vars {
+        println!("{:?}", var);
+    }
+    println!();
+
     println!("Found constraints");
-    println!("{:?}", visitor.constraints);
+    for var in visitor.constraints {
+        println!("{:?}", var);
+    }
 }
 
 fn main() {
