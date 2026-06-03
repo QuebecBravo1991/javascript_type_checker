@@ -77,14 +77,6 @@ impl<'a> Visit<'a> for Visitor {
 
         walk::walk_variable_declarator(self, it);
     }
-    fn visit_formal_parameter(&mut self, it: &FormalParameter<'a>) {
-        let id = it.pattern.get_identifier_name().unwrap().into_string();
-        self.id_type_vars
-            .entry(id.to_string())
-            .or_insert(Type::TypeVar(id));
-
-        walk::walk_formal_parameter(self, it);
-    }
     // TODO: output
     // TODO: if statements
     // fn visit_if_statement(&mut self, it: &IfStatement<'a>) {
