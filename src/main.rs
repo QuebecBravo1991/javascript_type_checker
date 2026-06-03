@@ -44,7 +44,17 @@ impl<'a> Visit<'a> for Visitor {
 
         walk::walk_binary_expression(self, it);
     }
-    // TODO: input
+    // input
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if Some("parseInt") == it.callee_name() {
+            let node_id = it.node_id().index().to_string();
+            let expr_type = Type::TypeVar(node_id.clone());
+            self.non_id_type_vars
+                .entry(node_id.clone())
+                .or_insert(expr_type.clone());
+            self.constraints.push((expr_type, Type::Int));
+        }
+    }
     // X = E
     fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
         let id = it.id.get_binding_identifier().unwrap().name.to_string();
@@ -122,8 +132,12 @@ fn gen_constraints(program: Program) {
     };
 
     visitor.visit_program(&program);
-    println!("{:?}", visitor.id_type_vars);
-    println!("{:?}", visitor.non_id_type_vars);
+
+    println!("Identifier type variables");
+    println!("{:?}\n", visitor.id_type_vars);
+    println!("Non identifier type variables");
+    println!("{:?}\n", visitor.non_id_type_vars);
+    println!("Found constraints");
     println!("{:?}", visitor.constraints);
 }
 
