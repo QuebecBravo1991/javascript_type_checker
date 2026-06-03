@@ -10,25 +10,10 @@ use std::collections::HashMap;
 use std::fs;
 use std::io;
 
-struct UniqueId {
-    current_id: i32,
-}
-
-impl UniqueId {
-    fn new() -> Self {
-        UniqueId { current_id: -1 }
-    }
-    fn next(&mut self) -> String {
-        self.current_id += 1;
-        return self.current_id.to_string();
-    }
-}
-
 struct Visitor {
     id_type_vars: HashMap<String, Type>,
     non_id_type_vars: HashMap<String, Type>,
     constraints: Vec<(Type, Type)>,
-    id_genor: UniqueId,
 }
 
 impl<'a> Visit<'a> for Visitor {
@@ -39,13 +24,16 @@ impl<'a> Visit<'a> for Visitor {
             panic!("A variable is being declared with a non-unique identifier!");
         }
 
+        let left_operand = Type::TypeVar(id.clone());
+
         if let Some(_) = it.init {
-            let left_operand = Type::TypeVar(id.to_string());
-            let right_operand = Type::TypeVar(self.id_genor.next());
-            self.constraints.push((left_operand, right_operand));
+            let right_operand = Type::TypeVar(it.node_id().index().to_string());
+            self.non_id_type_vars
+                .insert(it.node_id().index().to_string(), right_operand.clone());
+
+            self.constraints.push((left_operand.clone(), right_operand));
         }
-        self.id_type_vars
-            .insert(id.to_string(), Type::TypeVar(id.to_string()));
+        self.id_type_vars.insert(id, left_operand);
 
         walk::walk_variable_declarator(self, it);
     }
@@ -63,25 +51,30 @@ impl<'a> Visit<'a> for Visitor {
 
         walk::walk_function(self, it, flags);
     }
-    // fn visit_binary_expression(&mut self, it: &BinaryExpression<'a>) {
-    //     let left_id = self.id_genor.next();
-    //     let left_operator = Type::TypeVar(left_id.to_string());
-    //     let right_id = self.id_genor.next();
-    //     let right_operator = Type::TypeVar(right_id.to_string());
-    //     self.non_id_type_vars.insert(left_id, left_operator);
-    //     self.non_id_type_vars.insert(right_id, right_operator);
+    fn visit_binary_expression(&mut self, it: &BinaryExpression<'a>) {
+        let node_id = it.node_id().index().to_string();
+        let left_id = it.left.node_id().index().to_string();
+        let left_operator = Type::TypeVar(left_id.clone());
+        let right_id = it.right.node_id().index().to_string();
+        let right_operator = Type::TypeVar(right_id.clone());
 
-    //     if it.operator == Equality {
-    //         // do stuff
-    //     } else {
-    //         self.constraints.push((left_operator, right_operator));
-    //         self.constraints.push((left_operator, Type::Int));
-    //         self.constraints.push((right_operator, Type::Int));
-    //     }
-    // }
+        self.non_id_type_vars.insert(node_id, Type::Int);
+        self.non_id_type_vars.insert(left_id, left_operator.clone());
+        self.non_id_type_vars
+            .insert(right_id, right_operator.clone());
+
+        if it.operator == Equality {
+            // do stuff
+        } else {
+            self.constraints
+                .push((left_operator.clone(), right_operator.clone()));
+            self.constraints.push((left_operator, Type::Int));
+            self.constraints.push((right_operator, Type::Int));
+        }
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Type {
     Int,
     Pointer(Box<Type>),
@@ -98,7 +91,7 @@ fn read_program(path: &str) -> Result<String, io::Error> {
 fn gen_ast<'a>(allocator: &'a Allocator, source: &'a str) -> Program<'a> {
     let source_type = SourceType::default();
     let program = Parser::new(allocator, source, source_type).parse().program;
-    let semantic_ret = SemanticBuilder::new().build(&program);
+    SemanticBuilder::new().build(&program);
     program
 }
 
@@ -107,11 +100,11 @@ fn gen_constraints(program: Program) {
         id_type_vars: HashMap::new(),
         non_id_type_vars: HashMap::new(),
         constraints: Vec::new(),
-        id_genor: UniqueId::new(),
     };
 
     visitor.visit_program(&program);
     println!("{:?}", visitor.id_type_vars);
+    println!("{:?}", visitor.non_id_type_vars);
     println!("{:?}", visitor.constraints);
 }
 
