@@ -27,6 +27,7 @@ impl<'a> Visit<'a> for Visitor {
             .push((Type::TypeVar(node_id), Type::Number));
         walk::walk_numeric_literal(self, it);
     }
+
     // E1 op E2 and E1 == E2
     fn visit_binary_expression(&mut self, it: &BinaryExpression<'a>) {
         let node_id = it.node_id().index().to_string();
@@ -56,6 +57,7 @@ impl<'a> Visit<'a> for Visitor {
 
         walk::walk_binary_expression(self, it);
     }
+
     // input
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
         if Some("parseInt") == it.callee_name() {
@@ -67,6 +69,7 @@ impl<'a> Visit<'a> for Visitor {
             self.constraints.push((expr_type, Type::Number));
         }
     }
+
     // X = E
     fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
         let id = it.id.get_binding_identifier().unwrap().name.to_string();
@@ -114,8 +117,8 @@ impl<'a> Visit<'a> for Visitor {
         }
         walk::walk_assignment_expression(self, it);
     }
-    // TODO: output
-    // TODO: if statements
+
+    // if statements
     fn visit_if_statement(&mut self, it: &IfStatement<'a>) {
         let test_node_id = it.test.node_id().index().to_string();
         let test_type = Type::TypeVar(test_node_id.clone());
@@ -126,8 +129,19 @@ impl<'a> Visit<'a> for Visitor {
 
         walk::walk_if_statement(self, it);
     }
-    // TODO: if else statements
-    // TODO: while statements
+
+    // while statements
+    fn visit_while_statement(&mut self, it: &WhileStatement<'a>) {
+        let test_node_id = it.test.node_id().index().to_string();
+        let test_type = Type::TypeVar(test_node_id.clone());
+        self.non_id_type_vars
+            .entry(test_node_id)
+            .or_insert(test_type.clone());
+        self.constraints.push((test_type, Type::Number));
+
+        walk::walk_while_statement(self, it);
+    }
+
     // X(X1,. . . ,Xn ){ . . . return E; }
     fn visit_function(&mut self, it: &Function<'a>, flags: ScopeFlags) {
         if let Some(binding_id) = &it.id {
@@ -221,7 +235,7 @@ fn gen_constraints(program: Program) {
 }
 
 fn main() {
-    let source = read_program("test_files/t2.js").unwrap();
+    let source = read_program("test_files/t3.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
