@@ -99,6 +99,9 @@ impl<'a> Visit<'a> for Visitor {
                 Expression::Identifier(id_ref) => {
                     right_type = Type::TypeVar(id_ref.name.to_string())
                 }
+                Expression::BinaryExpression(binary_expr) => {
+                    right_type = Type::TypeVar(binary_expr.node_id().index().to_string())
+                }
                 Expression::CallExpression(ce) => {
                     right_type = Type::TypeVar(ce.node_id().index().to_string())
                 }
@@ -167,9 +170,7 @@ impl<'a> Visit<'a> for Visitor {
 #[derive(Debug, Clone)]
 enum Type {
     Number,
-    Pointer(Box<Type>),
     Function(Vec<Type>, Box<Type>),
-    MuExpression(String, Box<Type>),
     TypeVar(String),
 }
 
@@ -213,7 +214,7 @@ fn gen_constraints(program: Program) {
 }
 
 fn main() {
-    let source = read_program("test_files/t1.js").unwrap();
+    let source = read_program("test_files/t2.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
