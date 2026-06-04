@@ -27,7 +27,7 @@ impl<'a> Visit<'a> for Visitor {
 
         self.non_id_type_vars
             .entry(node_id.clone())
-            .or_insert(Type::Int);
+            .or_insert(Type::Number);
         self.non_id_type_vars
             .entry(left_id.clone())
             .or_insert(left_operator.clone());
@@ -36,11 +36,13 @@ impl<'a> Visit<'a> for Visitor {
             .or_insert(right_operator.clone());
 
         if it.operator != Equality {
-            self.constraints.push((left_operator.clone(), Type::Int));
-            self.constraints.push((right_operator.clone(), Type::Int));
+            self.constraints.push((left_operator.clone(), Type::Number));
+            self.constraints
+                .push((right_operator.clone(), Type::Number));
         }
         self.constraints.push((left_operator, right_operator));
-        self.constraints.push((Type::TypeVar(node_id), Type::Int));
+        self.constraints
+            .push((Type::TypeVar(node_id), Type::Number));
 
         walk::walk_binary_expression(self, it);
     }
@@ -52,7 +54,7 @@ impl<'a> Visit<'a> for Visitor {
             self.non_id_type_vars
                 .entry(node_id.clone())
                 .or_insert(expr_type.clone());
-            self.constraints.push((expr_type, Type::Int));
+            self.constraints.push((expr_type, Type::Number));
         }
     }
     // X = E
@@ -66,9 +68,10 @@ impl<'a> Visit<'a> for Visitor {
         let left_operand = Type::TypeVar(id.clone());
 
         if let Some(_) = it.init {
-            let right_operand = Type::TypeVar(it.node_id().index().to_string());
+            let right_operand_node_id = it.init.as_ref().unwrap().node_id().index().to_string();
+            let right_operand = Type::TypeVar(right_operand_node_id.clone());
             self.non_id_type_vars
-                .entry(it.node_id().index().to_string())
+                .entry(right_operand_node_id)
                 .or_insert(right_operand.clone());
 
             self.constraints.push((left_operand.clone(), right_operand));
@@ -82,7 +85,7 @@ impl<'a> Visit<'a> for Visitor {
             let left_type = Type::TypeVar(id_ref.name.to_string());
             let right_type;
             match &it.right {
-                Expression::NumericLiteral(_) => right_type = Type::Int,
+                Expression::NumericLiteral(_) => right_type = Type::Number,
                 Expression::Identifier(id_ref) => {
                     right_type = Type::TypeVar(id_ref.name.to_string())
                 }
@@ -120,7 +123,7 @@ impl<'a> Visit<'a> for Visitor {
                         let name = id_ref.name.to_string();
                         return_type = Type::TypeVar(name);
                     }
-                    Expression::NumericLiteral(_) => return_type = Type::Int,
+                    Expression::NumericLiteral(_) => return_type = Type::Number,
                     _ => panic!("Uh oh! The return type is not valid for this langauge subset."),
                 }
 
@@ -153,7 +156,7 @@ impl<'a> Visit<'a> for Visitor {
 
 #[derive(Debug, Clone)]
 enum Type {
-    Int,
+    Number,
     Pointer(Box<Type>),
     Function(Vec<Type>, Box<Type>),
     MuExpression(String, Box<Type>),
@@ -200,7 +203,7 @@ fn gen_constraints(program: Program) {
 }
 
 fn main() {
-    let source = read_program("example.js").unwrap();
+    let source = read_program("test_files/t1.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
