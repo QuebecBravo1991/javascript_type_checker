@@ -116,9 +116,16 @@ impl<'a> Visit<'a> for Visitor {
     }
     // TODO: output
     // TODO: if statements
-    // fn visit_if_statement(&mut self, it: &IfStatement<'a>) {
-    //     walk::walk_if_statement(self, it);
-    // }
+    fn visit_if_statement(&mut self, it: &IfStatement<'a>) {
+        let test_node_id = it.test.node_id().index().to_string();
+        let test_type = Type::TypeVar(test_node_id.clone());
+        self.non_id_type_vars
+            .entry(test_node_id)
+            .or_insert(test_type.clone());
+        self.constraints.push((test_type, Type::Number));
+
+        walk::walk_if_statement(self, it);
+    }
     // TODO: if else statements
     // TODO: while statements
     // X(X1,. . . ,Xn ){ . . . return E; }
