@@ -17,6 +17,16 @@ struct Visitor {
 }
 
 impl<'a> Visit<'a> for Visitor {
+    // [[I]] = number
+    fn visit_numeric_literal(&mut self, it: &NumericLiteral<'a>) {
+        let node_id = it.node_id().index().to_string();
+        self.non_id_type_vars
+            .entry(node_id.clone())
+            .or_insert(Type::Number);
+        self.constraints
+            .push((Type::TypeVar(node_id), Type::Number));
+        walk::walk_numeric_literal(self, it);
+    }
     // E1 op E2 and E1 == E2
     fn visit_binary_expression(&mut self, it: &BinaryExpression<'a>) {
         let node_id = it.node_id().index().to_string();
