@@ -175,7 +175,7 @@ impl<'a> Visit<'a> for Visitor {
         if let Some(binding_id) = &it.id {
             let id = binding_id.name.into_string();
 
-            // Though this is JavaScript we are going to restrict the input program to TIP rules. The last statement it.body.as_ref().unwrap().statements.last().unwrap()in every function should be a return statement.
+            // In this subset of JavaScript the last statement in the body should be a return statement.
             if let Statement::ReturnStatement(x) =
                 it.body.as_ref().unwrap().statements.last().unwrap()
             {
@@ -183,11 +183,25 @@ impl<'a> Visit<'a> for Visitor {
                 match x.argument.as_ref().unwrap() {
                     Expression::Identifier(id_ref) => {
                         let name = id_ref.name.to_string();
-                        return_type = Type::TypeVar(name);
+                        return_type = Type::TypeVar(name.clone());
+                        self.non_id_type_vars
+                            .entry(name)
+                            .or_insert(return_type.clone());
                     }
                     Expression::NumericLiteral(_) => return_type = Type::Number,
                     Expression::BinaryExpression(binary_expr) => {
-                        return_type = Type::TypeVar(binary_expr.node_id().index().to_string())
+                        let node_id = binary_expr.node_id().index().to_string();
+                        return_type = Type::TypeVar(node_id.clone());
+                        self.non_id_type_vars
+                            .entry(node_id)
+                            .or_insert(return_type.clone());
+                    }
+                    Expression::CallExpression(ce) => {
+                        let node_id = ce.node_id().index().to_string();
+                        return_type = Type::TypeVar(node_id.clone());
+                        self.non_id_type_vars
+                            .entry(node_id)
+                            .or_insert(return_type.clone());
                     }
                     _ => panic!("Uh oh! The return type is not valid for this langauge subset."),
                 }
@@ -266,7 +280,7 @@ fn gen_constraints(program: Program) {
 }
 
 fn main() {
-    let source = read_program("test_files/t5.js").unwrap();
+    let source = read_program("test_files/t7.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
