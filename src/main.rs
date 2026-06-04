@@ -17,7 +17,7 @@ struct Visitor {
 }
 
 impl<'a> Visit<'a> for Visitor {
-    // [[I]] = number
+    // I
     fn visit_numeric_literal(&mut self, it: &NumericLiteral<'a>) {
         let node_id = it.node_id().index().to_string();
         self.non_id_type_vars
@@ -58,16 +58,44 @@ impl<'a> Visit<'a> for Visitor {
         walk::walk_binary_expression(self, it);
     }
 
-    // input
+    // function application
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
-        if Some("parseInt") == it.callee_name() {
-            let node_id = it.node_id().index().to_string();
-            let expr_type = Type::TypeVar(node_id.clone());
-            self.non_id_type_vars
-                .entry(node_id.clone())
-                .or_insert(expr_type.clone());
-            self.constraints.push((expr_type, Type::Number));
+        let call_type_var;
+        match &it.callee {
+            Expression::Identifier(id_ref) => {
+                let id = id_ref.name.into_string();
+                call_type_var = Type::TypeVar(id.clone());
+                self.id_type_vars.entry(id).or_insert(call_type_var.clone());
+            }
+            _ => {
+                let node_id = it.callee.node_id().index().to_string();
+                call_type_var = Type::TypeVar(node_id.clone());
+                self.non_id_type_vars
+                    .entry(node_id)
+                    .or_insert(call_type_var.clone());
+            }
         }
+
+        let mut arg_type_vars = Vec::new();
+        for arg in &it.arguments {
+            let arg_node_id = arg.node_id().index().to_string();
+            let arg_type_var = Type::TypeVar(arg_node_id.clone());
+            self.non_id_type_vars
+                .entry(arg_node_id.clone())
+                .or_insert(arg_type_var.clone());
+            arg_type_vars.push(arg_type_var);
+        }
+
+        let node_id = it.node_id().index().to_string();
+        let func_return_type_var = Type::TypeVar(node_id.clone());
+        self.non_id_type_vars
+            .entry(node_id)
+            .or_insert(func_return_type_var.clone());
+
+        self.constraints.push((
+            call_type_var,
+            Type::Function(arg_type_vars, Box::new(func_return_type_var)),
+        ));
     }
 
     // X = E
@@ -158,6 +186,9 @@ impl<'a> Visit<'a> for Visitor {
                         return_type = Type::TypeVar(name);
                     }
                     Expression::NumericLiteral(_) => return_type = Type::Number,
+                    Expression::BinaryExpression(binary_expr) => {
+                        return_type = Type::TypeVar(binary_expr.node_id().index().to_string())
+                    }
                     _ => panic!("Uh oh! The return type is not valid for this langauge subset."),
                 }
 
@@ -235,7 +266,7 @@ fn gen_constraints(program: Program) {
 }
 
 fn main() {
-    let source = read_program("test_files/t3.js").unwrap();
+    let source = read_program("test_files/t5.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
