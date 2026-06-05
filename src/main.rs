@@ -10,6 +10,17 @@ use std::collections::HashMap;
 use std::fs;
 use std::io;
 
+#[derive(Debug, PartialEq)]
+struct UfNode {
+    val: Type,
+    index: usize,
+    parent: usize,
+}
+
+#[derive(Debug)]
+struct UnionFind {
+    nodes: Vec<UfNode>,
+}
 struct Visitor {
     id_type_vars: HashMap<String, Type>,
     non_id_type_vars: HashMap<String, Type>,
@@ -233,7 +244,7 @@ impl<'a> Visit<'a> for Visitor {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum Type {
     Number,
     Function(Vec<Type>, Box<Type>),
@@ -274,12 +285,74 @@ fn gen_constraints(
     )
 }
 
+fn constraints_to_nodes(constraints: Vec<(Type, Type)>) -> UnionFind {
+    let mut result = UnionFind { nodes: Vec::new() };
+    for constraint in constraints {
+        for term in [constraint.0, constraint.1] {
+            let node = UfNode {
+                val: term,
+                index: result.nodes.len(),
+                parent: result.nodes.len(),
+            };
+            result.nodes.push(node)
+        }
+    }
+    result
+}
+
+fn find(x_index: usize, uf: &mut UnionFind) -> usize {
+    let mut parent_index = uf.nodes[x_index].parent;
+
+    if uf.nodes[parent_index] != uf.nodes[x_index] {
+        parent_index = find(parent_index, uf);
+        uf.nodes[x_index].parent = parent_index;
+    }
+
+    return parent_index;
+}
+
+fn union(x_index: usize, y_index: usize, uf: &mut UnionFind) {
+    let xr_index = find(x_index, uf);
+    let yr_index = find(y_index, uf);
+
+    if uf.nodes[xr_index] != uf.nodes[yr_index] {
+        uf.nodes[xr_index].parent = yr_index;
+    }
+}
+
+fn unify(t1_index: usize, t2_index: usize, uf: &mut UnionFind) {
+    let t1r_index = find(uf.nodes[t1_index].parent, uf);
+    let t2r_index = find(uf.nodes[t2_index].parent, uf);
+    if uf.nodes[t1r_index] != uf.nodes[t2r_index] {
+        match (&uf.nodes[t1r_index].val, &uf.nodes[t2r_index].val) {
+            (Type::TypeVar(_), Type::TypeVar(_)) => union(t1r_index, t2r_index, uf),
+            (Type::TypeVar(_), _) => union(t1r_index, t2r_index, uf),
+            (_, Type::TypeVar(_)) => union(t2r_index, t1r_index, uf),
+            (Type::Number, Type::Number) => union(t1r_index, t2r_index, uf),
+            (Type::Function(_, _), Type::Function(_, _)) => {
+                union(t1r_index, t2r_index, uf)
+                // TODO: unify each sub term
+            }
+            (_, _) => panic!("Unification faliure!"),
+        };
+    }
+}
+
+fn typeable(constraints: Vec<(Type, Type)>) -> bool {
+    let uf = constraints_to_nodes(constraints);
+    for ufn in uf.nodes {
+        println!("{:?}", ufn);
+    }
+    false
+}
+
 fn main() {
-    let source = read_program("test_files/t9.js").unwrap();
+    let source = read_program("test_files/t1.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
     let (id_type_vars, non_id_type_vars, constraints) = gen_constraints(program);
+    // typeable(constraints);
 
     println!("Identifier type variables");
     for var in id_type_vars {
