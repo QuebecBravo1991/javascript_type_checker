@@ -252,7 +252,13 @@ fn gen_ast<'a>(allocator: &'a Allocator, source: &'a str) -> Program<'a> {
     program
 }
 
-fn gen_constraints(program: Program) {
+fn gen_constraints(
+    program: Program,
+) -> (
+    HashMap<String, Type>,
+    HashMap<String, Type>,
+    Vec<(Type, Type)>,
+) {
     let mut visitor = Visitor {
         id_type_vars: HashMap::new(),
         non_id_type_vars: HashMap::new(),
@@ -261,28 +267,34 @@ fn gen_constraints(program: Program) {
 
     visitor.visit_program(&program);
 
+    (
+        visitor.id_type_vars,
+        visitor.non_id_type_vars,
+        visitor.constraints,
+    )
+}
+
+fn main() {
+    let source = read_program("test_files/t9.js").unwrap();
+
+    let allocator = Allocator::default();
+    let program = gen_ast(&allocator, &source);
+    let (id_type_vars, non_id_type_vars, constraints) = gen_constraints(program);
+
     println!("Identifier type variables");
-    for var in visitor.id_type_vars {
+    for var in id_type_vars {
         println!("{:?}", var)
     }
     println!();
 
     println!("Non identifier type variables");
-    for var in visitor.non_id_type_vars {
+    for var in non_id_type_vars {
         println!("{:?}", var);
     }
     println!();
 
     println!("Found constraints");
-    for var in visitor.constraints {
+    for var in constraints {
         println!("{:?}", var);
     }
-}
-
-fn main() {
-    let source = read_program("test_files/t7.js").unwrap();
-
-    let allocator = Allocator::default();
-    let program = gen_ast(&allocator, &source);
-    gen_constraints(program);
 }
