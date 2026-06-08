@@ -11,8 +11,15 @@ use std::fs;
 use std::io;
 
 #[derive(Debug, PartialEq)]
+enum UfNodeType {
+    Number,
+    Function(Vec<usize>, usize),
+    TypeVar(String),
+}
+
+#[derive(Debug, PartialEq)]
 struct UfNode {
-    val: Type,
+    val: UfNodeType,
     index: usize,
     parent: usize,
 }
@@ -285,19 +292,53 @@ fn gen_constraints(
     )
 }
 
-fn constraints_to_nodes(constraints: Vec<(Type, Type)>) -> UnionFind {
-    let mut result = UnionFind { nodes: Vec::new() };
-    for constraint in constraints {
-        for term in [constraint.0, constraint.1] {
-            let node = UfNode {
-                val: term,
-                index: result.nodes.len(),
-                parent: result.nodes.len(),
+fn add_term(term: Type, uf: &mut UnionFind) {
+    let node;
+    match term {
+        Type::Number => {
+            node = UfNode {
+                val: UfNodeType::Number,
+                index: uf.nodes.len(),
+                parent: uf.nodes.len(),
             };
-            result.nodes.push(node)
+        }
+        Type::Function(param_types, boxed_return_type) => {
+            let mut param_indicies = Vec::new();
+            for param_type in param_types {
+                param_indicies.push(uf.nodes.len());
+                add_term(param_type, uf);
+            }
+            add_term(*boxed_return_type, uf);
+
+            node = UfNode {
+                val: UfNodeType::Function(param_indicies, uf.nodes.len() - 1),
+                index: uf.nodes.len(),
+                parent: uf.nodes.len(),
+            };
+        }
+        Type::TypeVar(name) => {
+            node = UfNode {
+                val: UfNodeType::TypeVar(name),
+                index: uf.nodes.len(),
+                parent: uf.nodes.len(),
+            };
         }
     }
-    result
+    uf.nodes.push(node);
+}
+
+fn constraints_to_nodes(constraints: Vec<(Type, Type)>) -> (UnionFind, Vec<(usize, usize)>) {
+    let mut uf_result = UnionFind { nodes: Vec::new() };
+    let mut constraint_indicies = Vec::new();
+    for constraint in constraints {
+        add_term(constraint.0, &mut uf_result);
+        let cons1_index = uf_result.nodes.len() - 1;
+        add_term(constraint.1, &mut uf_result);
+        let cons2_index = uf_result.nodes.len() - 1;
+
+        constraint_indicies.push((cons1_index, cons2_index));
+    }
+    (uf_result, constraint_indicies)
 }
 
 fn find(x_index: usize, uf: &mut UnionFind) -> usize {
@@ -321,38 +362,52 @@ fn union(x_index: usize, y_index: usize, uf: &mut UnionFind) {
 }
 
 fn unify(t1_index: usize, t2_index: usize, uf: &mut UnionFind) {
-    let t1r_index = find(uf.nodes[t1_index].parent, uf);
-    let t2r_index = find(uf.nodes[t2_index].parent, uf);
+    let t1r_index = find(t1_index, uf);
+    let t2r_index = find(t2_index, uf);
     if uf.nodes[t1r_index] != uf.nodes[t2r_index] {
         match (&uf.nodes[t1r_index].val, &uf.nodes[t2r_index].val) {
-            (Type::TypeVar(_), Type::TypeVar(_)) => union(t1r_index, t2r_index, uf),
-            (Type::TypeVar(_), _) => union(t1r_index, t2r_index, uf),
-            (_, Type::TypeVar(_)) => union(t2r_index, t1r_index, uf),
-            (Type::Number, Type::Number) => union(t1r_index, t2r_index, uf),
-            (Type::Function(_, _), Type::Function(_, _)) => {
-                union(t1r_index, t2r_index, uf)
-                // TODO: unify each sub term
+            (UfNodeType::TypeVar(_), UfNodeType::TypeVar(_)) => union(t1r_index, t2r_index, uf),
+            (UfNodeType::TypeVar(_), _) => union(t1r_index, t2r_index, uf),
+            (_, UfNodeType::TypeVar(_)) => union(t2r_index, t1r_index, uf),
+            (UfNodeType::Number, UfNodeType::Number) => union(t1r_index, t2r_index, uf),
+            (
+                UfNodeType::Function(t1_params, t1_return),
+                UfNodeType::Function(t2_params, t2_return),
+            ) => {
+                let t1_params = t1_params.clone();
+                let t2_params = t2_params.clone();
+                let t1_return = *t1_return;
+                let t2_return = *t2_return;
+
+                if t1_params.len() != t2_params.len() {
+                    panic!("Unification failure!");
+                }
+
+                union(t1r_index, t2r_index, uf);
+                unify(t1_return, t2_return, uf);
+                for (t1_param_index, t2_param_index) in t1_params.iter().zip(t2_params.iter()) {
+                    unify(*t1_param_index, *t2_param_index, uf);
+                }
             }
-            (_, _) => panic!("Unification faliure!"),
+            (_, _) => panic!("Unification failure!"),
         };
     }
 }
 
-fn typeable(constraints: Vec<(Type, Type)>) -> bool {
-    let uf = constraints_to_nodes(constraints);
-    for ufn in uf.nodes {
-        println!("{:?}", ufn);
+fn solve(constraints: Vec<(Type, Type)>) {
+    let (mut uf, constraint_indicies) = constraints_to_nodes(constraints);
+    for (t1_index, t2_index) in constraint_indicies {
+        unify(t1_index, t2_index, &mut uf);
     }
-    false
 }
 
 fn main() {
-    let source = read_program("test_files/t1.js").unwrap();
+    let source = read_program("test_files/t8.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
     let (id_type_vars, non_id_type_vars, constraints) = gen_constraints(program);
-    // typeable(constraints);
+    solve(constraints.clone());
 
     println!("Identifier type variables");
     for var in id_type_vars {
