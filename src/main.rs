@@ -292,7 +292,7 @@ fn gen_constraints(
     )
 }
 
-fn add_term(term: Type, uf: &mut UnionFind) {
+fn add_term(term: Type, uf: &mut UnionFind) -> usize {
     let node;
     match term {
         Type::Number => {
@@ -301,6 +301,8 @@ fn add_term(term: Type, uf: &mut UnionFind) {
                 index: uf.nodes.len(),
                 parent: uf.nodes.len(),
             };
+            uf.nodes.push(node);
+            uf.nodes.len() - 1
         }
         Type::Function(param_types, boxed_return_type) => {
             let mut param_indicies = Vec::new();
@@ -315,26 +317,35 @@ fn add_term(term: Type, uf: &mut UnionFind) {
                 index: uf.nodes.len(),
                 parent: uf.nodes.len(),
             };
+            uf.nodes.push(node);
+            uf.nodes.len() - 1
         }
         Type::TypeVar(name) => {
-            node = UfNode {
-                val: UfNodeType::TypeVar(name),
-                index: uf.nodes.len(),
-                parent: uf.nodes.len(),
-            };
+            if let Some(index) = uf
+                .nodes
+                .iter()
+                .position(|x| x.val == UfNodeType::TypeVar(name.clone()))
+            {
+                index
+            } else {
+                node = UfNode {
+                    val: UfNodeType::TypeVar(name),
+                    index: uf.nodes.len(),
+                    parent: uf.nodes.len(),
+                };
+                uf.nodes.push(node);
+                uf.nodes.len() - 1
+            }
         }
     }
-    uf.nodes.push(node);
 }
 
 fn constraints_to_nodes(constraints: Vec<(Type, Type)>) -> (UnionFind, Vec<(usize, usize)>) {
     let mut uf_result = UnionFind { nodes: Vec::new() };
     let mut constraint_indicies = Vec::new();
     for constraint in constraints {
-        add_term(constraint.0, &mut uf_result);
-        let cons1_index = uf_result.nodes.len() - 1;
-        add_term(constraint.1, &mut uf_result);
-        let cons2_index = uf_result.nodes.len() - 1;
+        let cons1_index = add_term(constraint.0, &mut uf_result);
+        let cons2_index = add_term(constraint.1, &mut uf_result);
 
         constraint_indicies.push((cons1_index, cons2_index));
     }
@@ -399,15 +410,16 @@ fn solve(constraints: Vec<(Type, Type)>) {
     for (t1_index, t2_index) in constraint_indicies {
         unify(t1_index, t2_index, &mut uf);
     }
+
+    println!("{:?}", uf);
 }
 
 fn main() {
-    let source = read_program("test_files/t8.js").unwrap();
+    let source = read_program("test_files/t1.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
     let (id_type_vars, non_id_type_vars, constraints) = gen_constraints(program);
-    solve(constraints.clone());
 
     println!("Identifier type variables");
     for var in id_type_vars {
@@ -422,7 +434,9 @@ fn main() {
     println!();
 
     println!("Found constraints");
-    for var in constraints {
+    for var in &constraints {
         println!("{:?}", var);
     }
+
+    solve(constraints);
 }
