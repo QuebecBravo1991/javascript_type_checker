@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum UfNodeType {
     Number,
     Function(Vec<usize>, usize),
@@ -405,13 +405,50 @@ fn unify(t1_index: usize, t2_index: usize, uf: &mut UnionFind) {
     }
 }
 
-fn solve(constraints: Vec<(Type, Type)>) {
+fn to_type(node_type: UfNodeType, uf: &UnionFind) -> Type {
+    match node_type {
+        UfNodeType::Number => Type::Number,
+        UfNodeType::Function(param_indicies, return_index) => Type::Function(
+            param_indicies
+                .into_iter()
+                .map(|x| to_type(uf.nodes.get(x).unwrap().val.clone(), uf))
+                .collect(),
+            Box::new(to_type(uf.nodes.get(return_index).unwrap().val.clone(), uf)),
+        ),
+        UfNodeType::TypeVar(name) => Type::TypeVar(name.clone()),
+    }
+}
+
+fn complete_table(uf: &mut UnionFind, type_vars: &mut HashMap<String, Type>) {
+    let keys: Vec<String> = type_vars.keys().cloned().collect();
+    for key in keys {
+        if let Some(index) = uf
+            .nodes
+            .iter()
+            .position(|x| x.val == UfNodeType::TypeVar(key.clone()))
+        {
+            let r = find(index, uf);
+            let solution_type = uf.nodes.get(r).unwrap().val.clone();
+
+            type_vars.insert(key.clone(), to_type(solution_type, &uf));
+        } else {
+            panic!("Searched for a TypeVar that is no longer in Union-Find");
+        }
+    }
+}
+
+fn solve(
+    constraints: Vec<(Type, Type)>,
+    id_type_vars: &mut HashMap<String, Type>,
+    non_id_type_vars: &mut HashMap<String, Type>,
+) {
     let (mut uf, constraint_indicies) = constraints_to_nodes(constraints);
     for (t1_index, t2_index) in constraint_indicies {
         unify(t1_index, t2_index, &mut uf);
     }
 
-    println!("{:?}", uf);
+    complete_table(&mut uf, id_type_vars);
+    complete_table(&mut uf, non_id_type_vars);
 }
 
 fn main() {
@@ -419,7 +456,15 @@ fn main() {
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
-    let (id_type_vars, non_id_type_vars, constraints) = gen_constraints(program);
+    let (mut id_type_vars, mut non_id_type_vars, constraints) = gen_constraints(program);
+
+    println!("Found constraints");
+    for var in &constraints {
+        println!("{:?}", var);
+    }
+    println!();
+
+    solve(constraints, &mut id_type_vars, &mut non_id_type_vars);
 
     println!("Identifier type variables");
     for var in id_type_vars {
@@ -432,11 +477,4 @@ fn main() {
         println!("{:?}", var);
     }
     println!();
-
-    println!("Found constraints");
-    for var in &constraints {
-        println!("{:?}", var);
-    }
-
-    solve(constraints);
 }
