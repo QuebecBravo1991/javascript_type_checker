@@ -38,6 +38,7 @@ impl<'a> Visit<'a> for Visitor {
     // I
     fn visit_numeric_literal(&mut self, it: &NumericLiteral<'a>) {
         let node_id = it.node_id().index().to_string();
+        println!("Found a numeric literal node id: {}", node_id);
         self.non_id_type_vars
             .entry(node_id.clone())
             .or_insert(Type::Number);
@@ -97,23 +98,37 @@ impl<'a> Visit<'a> for Visitor {
         let mut arg_type_vars = Vec::new();
         for arg in &it.arguments {
             let arg_node_id = arg.node_id().index().to_string();
-            let arg_type_var = Type::TypeVar(arg_node_id.clone());
-            self.non_id_type_vars
-                .entry(arg_node_id.clone())
-                .or_insert(arg_type_var.clone());
-            arg_type_vars.push(arg_type_var);
+            let arg_type;
+            match arg {
+                Argument::NumericLiteral(_) => {
+                    arg_type = Type::TypeVar(arg_node_id.clone());
+                    self.non_id_type_vars
+                        .entry(arg_node_id.clone())
+                        .or_insert(arg_type.clone());
+                }
+                Argument::Identifier(id_ref) => {
+                    let name = id_ref.name.into_string();
+                    arg_type = Type::TypeVar(name.clone());
+                    self.id_type_vars.entry(name).or_insert(arg_type.clone());
+                }
+                _ => panic!(
+                    "Uh oh! Found a paramater that is not part of the expected JavaScript subset."
+                ),
+            }
+
+            arg_type_vars.push(arg_type);
         }
 
         let node_id = it.node_id().index().to_string();
-        let func_return_type_var = Type::TypeVar(node_id.clone());
+        let call_node_type_var = Type::TypeVar(node_id.clone());
+        let call_type = Type::Function(arg_type_vars, Box::new(call_node_type_var.clone()));
         self.non_id_type_vars
             .entry(node_id)
-            .or_insert(func_return_type_var.clone());
+            .or_insert(call_node_type_var);
 
-        self.constraints.push((
-            call_type_var,
-            Type::Function(arg_type_vars, Box::new(func_return_type_var)),
-        ));
+        self.constraints.push((call_type_var, call_type));
+
+        walk::walk_call_expression(self, it);
     }
 
     // X = E
@@ -243,7 +258,7 @@ impl<'a> Visit<'a> for Visitor {
                     Type::Function(param_type_vars, Box::new(return_type)),
                 ))
             } else {
-                panic!("Uh oh! This function does not meet our TIP style restrictions.")
+                panic!("Uh oh! This function does not meet our JavaScript subset restrictions.")
             }
         }
 
@@ -432,6 +447,7 @@ fn complete_table(uf: &mut UnionFind, type_vars: &mut HashMap<String, Type>) {
 
             type_vars.insert(key.clone(), to_type(solution_type, &uf));
         } else {
+            println!("{:?}", key);
             panic!("Searched for a TypeVar that is no longer in Union-Find");
         }
     }
@@ -452,7 +468,7 @@ fn solve(
 }
 
 fn main() {
-    let source = read_program("test_files/t1.js").unwrap();
+    let source = read_program("test_files/t5.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
@@ -464,15 +480,27 @@ fn main() {
     }
     println!();
 
+    println!("Before -> Identifier type variables");
+    for var in &id_type_vars {
+        println!("{:?}", var)
+    }
+    println!();
+
+    println!("Before -> Non identifier type variables");
+    for var in &non_id_type_vars {
+        println!("{:?}", var);
+    }
+    println!();
+
     solve(constraints, &mut id_type_vars, &mut non_id_type_vars);
 
-    println!("Identifier type variables");
+    println!("After -> Identifier type variables");
     for var in id_type_vars {
         println!("{:?}", var)
     }
     println!();
 
-    println!("Non identifier type variables");
+    println!("After -> Non identifier type variables");
     for var in non_id_type_vars {
         println!("{:?}", var);
     }
