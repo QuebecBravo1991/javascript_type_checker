@@ -105,6 +105,12 @@ impl<'a> Visit<'a> for Visitor {
                         .entry(arg_node_id.clone())
                         .or_insert(arg_type.clone());
                 }
+                Argument::BinaryExpression(_) => {
+                    arg_type = Type::TypeVar(arg_node_id.clone());
+                    self.non_id_type_vars
+                        .entry(arg_node_id.clone())
+                        .or_insert(arg_type.clone());
+                }
                 Argument::Identifier(id_ref) => {
                     let name = id_ref.name.into_string();
                     arg_type = Type::TypeVar(name.clone());
@@ -483,7 +489,7 @@ fn solve(
 }
 
 fn main() {
-    let source = read_program("test_files/t5.js").unwrap();
+    let source = read_program("test_files/t6.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
