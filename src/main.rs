@@ -50,19 +50,45 @@ impl<'a> Visit<'a> for Visitor {
     fn visit_binary_expression(&mut self, it: &BinaryExpression<'a>) {
         let node_id = it.node_id().index().to_string();
         let left_id = it.left.node_id().index().to_string();
-        let left_operand = Type::TypeVar(left_id.clone());
         let right_id = it.right.node_id().index().to_string();
-        let right_operand = Type::TypeVar(right_id.clone());
 
         self.non_id_type_vars
             .entry(node_id.clone())
             .or_insert(Type::Number);
-        self.non_id_type_vars
-            .entry(left_id.clone())
-            .or_insert(left_operand.clone());
-        self.non_id_type_vars
-            .entry(right_id.clone())
-            .or_insert(right_operand.clone());
+
+        let left_operand;
+        match &it.left {
+            Expression::Identifier(id_ref) => {
+                let name = id_ref.name.into_string();
+                left_operand = Type::TypeVar(name.clone());
+                self.id_type_vars
+                    .entry(name)
+                    .or_insert(left_operand.clone());
+            }
+            _ => {
+                left_operand = Type::TypeVar(left_id.clone());
+                self.non_id_type_vars
+                    .entry(left_id.clone())
+                    .or_insert(left_operand.clone());
+            }
+        }
+
+        let right_operand;
+        match &it.right {
+            Expression::Identifier(id_ref) => {
+                let name = id_ref.name.into_string();
+                right_operand = Type::TypeVar(name.clone());
+                self.id_type_vars
+                    .entry(name)
+                    .or_insert(right_operand.clone());
+            }
+            _ => {
+                right_operand = Type::TypeVar(right_id.clone());
+                self.non_id_type_vars
+                    .entry(right_id.clone())
+                    .or_insert(right_operand.clone());
+            }
+        }
 
         if it.operator != Equality {
             self.constraints.push((left_operand.clone(), Type::Number));
@@ -138,10 +164,6 @@ impl<'a> Visit<'a> for Visitor {
     // X = E
     fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
         let id = it.id.get_binding_identifier().unwrap().name.to_string();
-
-        if self.id_type_vars.contains_key(&id) {
-            panic!("Uh oh! A variable is being declared with a non-unique identifier!");
-        }
 
         let left_operand = Type::TypeVar(id.clone());
 
@@ -486,7 +508,7 @@ fn solve(
 }
 
 fn main() {
-    let source = read_program("test_files/t9.js").unwrap();
+    let source = read_program("test_files/t6.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
