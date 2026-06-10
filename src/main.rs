@@ -65,9 +65,8 @@ impl<'a> Visit<'a> for Visitor {
             .or_insert(right_operand.clone());
 
         if it.operator != Equality {
-            self.constraints.push((left_operator.clone(), Type::Number));
-            self.constraints
-                .push((right_operator.clone(), Type::Number));
+            self.constraints.push((left_operand.clone(), Type::Number));
+            self.constraints.push((right_operand.clone(), Type::Number));
         }
         self.constraints.push((left_operand, right_operand));
         self.constraints
@@ -222,9 +221,7 @@ impl<'a> Visit<'a> for Visitor {
                     Expression::Identifier(id_ref) => {
                         let name = id_ref.name.to_string();
                         return_type = Type::TypeVar(name.clone());
-                        self.non_id_type_vars
-                            .entry(name)
-                            .or_insert(return_type.clone());
+                        self.id_type_vars.entry(name).or_insert(return_type.clone());
                     }
                     Expression::NumericLiteral(_) => return_type = Type::Number,
                     Expression::BinaryExpression(binary_expr) => {
@@ -489,7 +486,7 @@ fn solve(
 }
 
 fn main() {
-    let source = read_program("test_files/t6.js").unwrap();
+    let source = read_program("test_files/t9.js").unwrap();
 
     let allocator = Allocator::default();
     let program = gen_ast(&allocator, &source);
