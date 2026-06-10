@@ -50,26 +50,26 @@ impl<'a> Visit<'a> for Visitor {
     fn visit_binary_expression(&mut self, it: &BinaryExpression<'a>) {
         let node_id = it.node_id().index().to_string();
         let left_id = it.left.node_id().index().to_string();
-        let left_operator = Type::TypeVar(left_id.clone());
+        let left_operand = Type::TypeVar(left_id.clone());
         let right_id = it.right.node_id().index().to_string();
-        let right_operator = Type::TypeVar(right_id.clone());
+        let right_operand = Type::TypeVar(right_id.clone());
 
         self.non_id_type_vars
             .entry(node_id.clone())
             .or_insert(Type::Number);
         self.non_id_type_vars
             .entry(left_id.clone())
-            .or_insert(left_operator.clone());
+            .or_insert(left_operand.clone());
         self.non_id_type_vars
             .entry(right_id.clone())
-            .or_insert(right_operator.clone());
+            .or_insert(right_operand.clone());
 
         if it.operator != Equality {
             self.constraints.push((left_operator.clone(), Type::Number));
             self.constraints
                 .push((right_operator.clone(), Type::Number));
         }
-        self.constraints.push((left_operator, right_operator));
+        self.constraints.push((left_operand, right_operand));
         self.constraints
             .push((Type::TypeVar(node_id), Type::Number));
 
