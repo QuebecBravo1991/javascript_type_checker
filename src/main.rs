@@ -38,7 +38,6 @@ impl<'a> Visit<'a> for Visitor {
     // I
     fn visit_numeric_literal(&mut self, it: &NumericLiteral<'a>) {
         let node_id = it.node_id().index().to_string();
-        println!("Found a numeric literal node id: {}", node_id);
         self.non_id_type_vars
             .entry(node_id.clone())
             .or_insert(Type::Number);
@@ -410,10 +409,10 @@ fn unify(t1_index: usize, t2_index: usize, uf: &mut UnionFind) {
                 }
 
                 union(t1r_index, t2r_index, uf);
-                unify(t1_return, t2_return, uf);
                 for (t1_param_index, t2_param_index) in t1_params.iter().zip(t2_params.iter()) {
                     unify(*t1_param_index, *t2_param_index, uf);
                 }
+                unify(t1_return, t2_return, uf);
             }
             (_, _) => panic!("Unification failure!"),
         };
@@ -443,12 +442,28 @@ fn complete_table(uf: &mut UnionFind, type_vars: &mut HashMap<String, Type>) {
             .position(|x| x.val == UfNodeType::TypeVar(key.clone()))
         {
             let r = find(index, uf);
-            let solution_type = uf.nodes.get(r).unwrap().val.clone();
+            let solution_type;
+            match uf.nodes.get(r).unwrap().val.clone() {
+                UfNodeType::Number => solution_type = UfNodeType::Number,
+                UfNodeType::Function(param_indicies, return_index) => {
+                    let mut solved_params: Vec<usize> = Vec::new();
+                    for param_index in param_indicies {
+                        solved_params.push(find(param_index, uf));
+                    }
 
+                    let solved_return = find(return_index, uf);
+                    solution_type = UfNodeType::Function(solved_params, solved_return);
+                }
+                UfNodeType::TypeVar(name) => {
+                    println!(
+                        "Uh oh! found a TypeVar as a root node. Something did not get sovled."
+                    );
+                    solution_type = UfNodeType::TypeVar(name);
+                }
+            };
             type_vars.insert(key.clone(), to_type(solution_type, &uf));
         } else {
-            println!("{:?}", key);
-            panic!("Searched for a TypeVar that is no longer in Union-Find");
+            panic!("Searched for a TypeVar that is not in Union-Find");
         }
     }
 }
