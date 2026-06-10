@@ -321,13 +321,13 @@ fn add_term(term: Type, uf: &mut UnionFind) -> usize {
         Type::Function(param_types, boxed_return_type) => {
             let mut param_indicies = Vec::new();
             for param_type in param_types {
-                param_indicies.push(uf.nodes.len());
-                add_term(param_type, uf);
+                let param_index = add_term(param_type, uf);
+                param_indicies.push(param_index);
             }
-            add_term(*boxed_return_type, uf);
+            let return_index = add_term(*boxed_return_type, uf);
 
             node = UfNode {
-                val: UfNodeType::Function(param_indicies, uf.nodes.len() - 1),
+                val: UfNodeType::Function(param_indicies, return_index),
                 index: uf.nodes.len(),
                 parent: uf.nodes.len(),
             };
